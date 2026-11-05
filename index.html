@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sorteio de Alunos Pro</title>
+    <!-- Tailwind CSS para Estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome para Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti para Efeitos -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            500: '#8b5cf6', // Violeta
+                            600: '#7c3aed',
+                            900: '#4c1d95',
+                        }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* Scrollbar customizada */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2); 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2); 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.4); 
+        }
+        
+        /* Nova classe para garantir que o ganhador fique visível e com efeito brilhante */
+        .winner-text {
+            color: #ffffff;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.5), 0 0 30px rgba(139, 92, 246, 0.8), 0 0 50px rgba(236, 72, 153, 0.8);
+            transform: scale(1.1);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center">
+
+    <!-- Cabeçalho -->
+    <header class="w-full max-w-8xl flex justify-between items-center mb-8">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-brand-500 to-pink-500 flex items-center justify-center text-xl font-bold shadow-lg shadow-brand-500/30">
+                <i class="fa-solid fa-dice-d20"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Sorteio Pro</h1>
+                <p class="text-sm text-gray-400">Gerenciador de Turmas</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 sm:gap-3">
+            <button onclick="toggleFullScreen()" class="glass-panel px-4 py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center h-10 w-10 sm:w-auto sm:gap-2" title="Tela Cheia">
+                <i class="fa-solid fa-expand" id="fullscreenIcon"></i> <span class="hidden sm:inline">Tela Cheia</span>
+            </button>
+            <button onclick="openSettings()" class="glass-panel px-4 py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center h-10 w-10 sm:w-auto sm:gap-2" title="Gerenciar Turmas">
+                <i class="fa-solid fa-gear"></i> <span class="hidden sm:inline">Gerenciar Turmas</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Área Principal -->
+    <main class="w-full max-w-[100rem] grid grid-cols-1 md:grid-cols-12 gap-6">
+        
+        <!-- Painel Esquerdo: Seleção e Lista -->
+        <div class="glass-panel rounded-2xl p-6 md:col-span-4 flex flex-col h-[750px]">
+            <h2 class="text-lg font-semibold mb-4 border-b border-white/10 pb-2"><i class="fa-solid fa-users mr-2"></i>Turma</h2>
+            
+            <select id="classSelector" onchange="changeClass()" class="w-full bg-black/30 border border-white/20 rounded-lg p-3 text-white focus:outline-none focus:border-brand-500 transition-colors mb-4 appearance-none cursor-pointer">
+                <!-- Preenchido via JS -->
+            </select>
+
+            <div class="flex justify-between items-center mb-2 text-sm text-gray-400">
+                <span>Alunos na urna:</span>
+                <span id="studentCount" class="font-bold text-white bg-white/10 px-2 py-1 rounded-md">0</span>
+            </div>
+
+            <ul id="studentList" class="flex-1 overflow-y-auto space-y-2 pr-2">
+                <!-- Lista de alunos preenchida via JS -->
+            </ul>
+        </div>
+
+        <!-- Painel Central: Sorteio -->
+        <div class="glass-panel rounded-2xl p-6 md:col-span-5 flex flex-col items-center justify-center relative overflow-hidden h-[750px]">
+            <!-- Elementos de fundo -->
+            <div class="absolute top-[-10%] left-[-10%] w-64 h-64 bg-brand-600/20 rounded-full blur-3xl"></div>
+            <div class="absolute bottom-[-10%] right-[-10%] w-64 h-64 bg-pink-600/20 rounded-full blur-3xl"></div>
+
+            <div class="text-center z-10 w-full">
+                <h3 class="text-gray-400 mb-8 uppercase tracking-widest text-sm font-semibold">Ganhador do Sorteio</h3>
+                
+                <div class="min-h-[120px] flex items-center justify-center mb-8">
+                    <div id="resultDisplay" class="text-4xl md:text-5xl font-bold text-center break-words w-full px-4 text-white/50 transition-all duration-300">
+                        Pronto para sortear
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mb-8 bg-black/20 p-4 rounded-xl border border-white/5">
+                    <div class="flex items-center gap-2">
+                        <label for="drawCount" class="text-sm text-gray-300 select-none">Quantidade:</label>
+                        <input type="number" id="drawCount" min="1" max="50" value="1" class="w-16 bg-white/10 border border-white/20 rounded p-1 text-center text-white focus:outline-none focus:border-brand-500 transition-colors">
+                    </div>
+                    <div class="w-px h-6 bg-white/10 hidden sm:block"></div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="removeAfterDraw" class="w-5 h-5 accent-brand-500 cursor-pointer" checked>
+                        <label for="removeAfterDraw" class="text-sm text-gray-300 cursor-pointer select-none">Remover após sorteio</label>
+                    </div>
+                </div>
+
+                <button id="drawBtn" onclick="startDraw()" class="group relative px-8 py-4 bg-white text-brand-900 font-bold text-xl rounded-full shadow-[0_0_40px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_rgba(255,255,255,0.5)] transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                    <span class="relative z-10 flex items-center gap-3">
+                        <i class="fa-solid fa-play"></i> Sortear Agora
+                    </span>
+                    <div class="absolute inset-0 h-full w-full rounded-full bg-gradient-to-r from-brand-400 via-pink-400 to-brand-400 opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Painel Direito: Histórico -->
+        <div class="glass-panel rounded-2xl p-6 md:col-span-3 flex flex-col h-[750px]">
+            <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+                <h2 class="text-lg font-semibold"><i class="fa-solid fa-clock-rotate-left mr-2"></i>Histórico</h2>
+                <button onclick="clearHistory()" class="text-xs text-red-400 hover:text-red-300 transition-colors bg-red-400/10 px-2 py-1 rounded">Limpar</button>
+            </div>
+            
+            <ul id="historyList" class="flex-1 overflow-y-auto space-y-3 pr-2">
+                <li class="text-gray-500 text-sm text-center mt-10">Nenhum sorteio realizado ainda.</li>
+            </ul>
+        </div>
+    </main>
+
+    <!-- Modal de Configurações (JSON Editor) -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-white/20 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="p-6 border-b border-white/10 flex justify-between items-center">
+                <h2 class="text-xl font-bold"><i class="fa-solid fa-code mr-2"></i>Editor de Turmas (JSON)</h2>
+                <button onclick="closeSettings()" class="text-gray-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 flex-1 flex flex-col gap-4 overflow-hidden">
+                <p class="text-sm text-gray-400">
+                    Você pode alterar os dados abaixo usando o formato JSON. As chaves são os nomes das turmas e os valores são listas (arrays) com os nomes dos alunos. Copie os nomes da sua planilha <b>Frequência DTM 2026.xls.xlsx</b> e adapte aqui.
+                </p>
+                <textarea id="jsonEditor" class="w-full flex-1 bg-black/50 border border-white/10 rounded-lg p-4 font-mono text-sm text-green-400 focus:outline-none focus:border-brand-500 resize-none min-h-[300px]" spellcheck="false"></textarea>
+                <div id="jsonError" class="text-red-400 text-sm hidden bg-red-400/10 p-3 rounded-lg border border-red-400/20">
+                    <i class="fa-solid fa-triangle-exclamation mr-2"></i> <span id="jsonErrorText">Erro de sintaxe no JSON.</span>
+                </div>
+            </div>
+            <div class="p-6 border-t border-white/10 flex justify-end gap-3 bg-white/5 rounded-b-2xl">
+                <button onclick="resetToDefault()" class="px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 transition-colors text-sm mr-auto">Restaurar Exemplo</button>
+                <button onclick="closeSettings()" class="px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 transition-colors">Cancelar</button>
+                <button onclick="saveSettings()" class="px-6 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold transition-colors shadow-lg shadow-brand-500/30">Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dados Padrão (Exemplo inicial)
+        const defaultData = {
+            "1DTM": [
+                "ANA JÚLIA BESSA PEGORARO",
+                "ANA JULIA DOS SANTOS JACINTO",
+                "ANA LÍVIA SALLES DE ALMEIDA",
+                "ANA LUIZA VELOSO BARBOSA FERREIRA",
+                "DAVI AMORIM SILVA",
+                "ELOISA DOS SANTOS ALEXANDRE",
+                "EMANUELLE ANANIAS BIAZOLLI",
+                "FELIPE GABRIEL DE MELO BONFIM",
+                "FELIPE GERALDO CANDIDO DOS SANTOS",
+                "FELIPE LOPES DA SILVA",
+                "GABRIEL SAMBUGARI ALBUQUERQUE DE MATTOS",
+                "GIOVANNA DE SOUZA",
+                "HILLARY LORRANE AZEVEDO DA SILVA",
+                "IGOR DE OLIVEIRA",
+                "ISABELA DE SOUZA CARREIRA",
+                "ISABELLA GONÇALVES VIEIRA BARBOSA",
+                "ISABELLA LELLIS DE CARVALHO",
+                "ISABELLE ALMEIDA KAYANO",
+                "ISADORA LELLIS DE CARVALHO",
+                "JOÃO PEDRO ANDRADE RODRIGUES",
+                "JOÃO PEDRO DE SOUZA MARTINS",
+                "JOÃO PEDRO FERREIRA CARDOSO",
+                "JÚLIA MIRANDA SANTOS",
+                "JÚLIA TEIXEIRA GALIANO",
+                "LETICIA DOS SANTOS COSTA",
+                "MARIA CLARA DA SILVA SANTOS",
+                "MATEUS TEODÓRIO LUCAS",
+                "ORLANDO LEITE FERREIRA NETO",
+                "RAYSSA FRIES MORETTO MARQUES",
+                "STELLA DE SOUZA CRUVINEL",
+                "STHEFANY LORENA RODRIGUES NASCIMENTO"
+            ],
+            "2DTM": [
+                "ANA CAROLINA DOS SANTOS GALANTE",
+                "ANDRÉ MOREIRA JACOBINO",
+                "ANDRÉ ZANCAN ROSA",
+                "ARIELLY SILVA RODRIGUES",
+                "BEATRIZ DE FELIPPO SOUZA CIRINO",
+                "BRENNO DOS SANTOS FAUSTINO MOTTA",
+                "FELIPE COSTA OLIVEIRA",
+                "GEOVANNA BOGOVICZ PAZINI",
+                "GEOVANNA GUERRA GONZAGA",
+                "GIOVANA DOS SANTOS BITENCORTE",
+                "GIOVANNA FERREIRA ROSSATO",
+                "HENRIQUE PRANDO DE OLIVEIRA",
+                "ISABELA MACHADO GREJANIN",
+                "JOÃO VITOR DE LIMA PRIMO",
+                "JULIA DIANA DE PAULA",
+                "KAICK GONÇALVES FLAUZINO",
+                "KAIQUE SASAKI DE CAMPOS",
+                "KAYKY RODRIGUES DE PAULA",
+                "LARISSA HELENA MACHADO CARDOSO",
+                "LÉO HENRIQUE FELIX DA SILVA",
+                "LYVIA DA MATA LIMA",
+                "MANUELA GOMES RIBEIRO",
+                "MATHEUS HENRIQUE MACHADO DE PAULA",
+                "MAYRA CLEMENTE AMERICO NERY",
+                "MONIQUE RODRIGUES DA SILVA",
+                "NICOLLY LOSNAQUE NUNES",
+                "PEDRO HENRIQUE SOUZA DA SILVA",
+                "VINÍCIUS CESAR MACHADO CARDOSO",
+                "YASMIM MEIRA LIVON",
+                "YASMIN GABRIELLA CAVALCANTI DE BARROS"
+            ]
+        };
+
+        // Estado do Aplicativo
+        let classesData = {};
+        let currentClass = "";
+        let availableStudents = [];
+        let drawHistory = [];
+        let isDrawing = false;
+
+        // Inicialização
+        function init() {
+            // Carregar do LocalStorage ou usar padrão
+            const savedData = localStorage.getItem('sorteioPro_data');
+            if (savedData) {
+                try {
+                    classesData = JSON.parse(savedData);
+                } catch (e) {
+                    classesData = JSON.parse(JSON.stringify(defaultData));
+                }
+            } else {
+                classesData = JSON.parse(JSON.stringify(defaultData));
+            }
+
+            populateClassSelector();
+        }
+
+        // Preenche o dropdown de turmas
+        function populateClassSelector() {
+            const selector = document.getElementById('classSelector');
+            selector.innerHTML = '';
+            
+            const classes = Object.keys(classesData);
+            if (classes.length === 0) {
+                selector.innerHTML = '<option value="">Nenhuma turma encontrada</option>';
+                availableStudents = [];
+                updateUI();
+                return;
+            }
+
+            classes.forEach(cls => {
+                const option = document.createElement('option');
+                option.value = cls;
+                option.textContent = cls;
+                selector.appendChild(option);
+            });
+
+            // Se a turma atual não existe mais nos dados, pega a primeira
+            if (!classesData[currentClass]) {
+                currentClass = classes[0];
+            }
+            selector.value = currentClass;
+            
+            loadClassData();
+        }
+
+        // Quando o usuário muda a turma no select
+        function changeClass() {
+            currentClass = document.getElementById('classSelector').value;
+            loadClassData();
+        }
+
+        // Carrega os alunos da turma selecionada
+        function loadClassData() {
+            if (classesData[currentClass]) {
+                // Clona o array para não alterar o original durante o sorteio se o usuário não quiser
+                availableStudents = [...classesData[currentClass]];
+            } else {
+                availableStudents = [];
+            }
+            // Limpa o histórico ao mudar de turma (opcional, mas recomendado)
+            drawHistory = [];
+            document.getElementById('resultDisplay').textContent = "Pronto para sortear";
+            document.getElementById('resultDisplay').className = "text-4xl md:text-5xl font-bold text-center break-words w-full px-4 text-white/50 transition-all duration-300";
+            
+            updateUI();
+        }
+
+        // Atualiza as listas na tela
+        function updateUI() {
+            // Atualiza contagem
+            document.getElementById('studentCount').textContent = availableStudents.length;
+
+            // Atualiza limite do input de quantidade
+            const countInput = document.getElementById('drawCount');
+            if (countInput) {
+                countInput.max = availableStudents.length;
+                if (parseInt(countInput.value) > availableStudents.length && availableStudents.length > 0) {
+                    countInput.value = availableStudents.length;
+                } else if (availableStudents.length === 0) {
+                    countInput.value = 1;
+                }
+            }
+
+            // Atualiza lista da esquerda
+            const listEl = document.getElementById('studentList');
+            listEl.innerHTML = '';
+            
+            if (availableStudents.length === 0) {
+                listEl.innerHTML = '<li class="text-gray-500 text-sm p-3 text-center">Nenhum aluno disponível.</li>';
+                document.getElementById('drawBtn').disabled = true;
+            } else {
+                document.getElementById('drawBtn').disabled = false;
+                availableStudents.forEach(student => {
+                    const li = document.createElement('li');
+                    li.className = 'bg-white/5 rounded-lg p-3 text-sm border border-white/5 flex items-center text-gray-200';
+                    li.innerHTML = `<i class="fa-regular fa-user text-brand-500 mr-3 opacity-50 shrink-0"></i> <span class="truncate">${student}</span>`;
+                    listEl.appendChild(li);
+                });
+            }
+
+            // Atualiza histórico na direita
+            const historyEl = document.getElementById('historyList');
+            historyEl.innerHTML = '';
+            if (drawHistory.length === 0) {
+                historyEl.innerHTML = '<li class="text-gray-500 text-sm text-center mt-10">Nenhum sorteio realizado ainda.</li>';
+            } else {
+                // Mostra do mais recente pro mais antigo
+                [...drawHistory].reverse().forEach((record, index) => {
+                    const li = document.createElement('li');
+                    li.className = 'bg-white/5 rounded-lg p-3 text-sm border-l-4 border-brand-500 text-white flex justify-between items-center animate-fade-in';
+                    li.innerHTML = `
+                        <span class="font-semibold">${record.name}</span>
+                        <span class="text-xs text-gray-400 bg-black/30 px-2 py-1 rounded">${record.time}</span>
+                    `;
+                    historyEl.appendChild(li);
+                });
+            }
+        }
+
+        // Função principal de sorteio
+        function startDraw() {
+            if (availableStudents.length === 0 || isDrawing) return;
+            
+            let count = parseInt(document.getElementById('drawCount').value) || 1;
+            if (count < 1) count = 1;
+            if (count > availableStudents.length) count = availableStudents.length;
+            
+            isDrawing = true;
+            const drawBtn = document.getElementById('drawBtn');
+            const resultDisplay = document.getElementById('resultDisplay');
+            
+            drawBtn.disabled = true;
+            drawBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sorteando...';
+            
+            // Efeito visual na caixa de resultado
+            resultDisplay.className = "text-3xl md:text-4xl font-bold text-center break-words w-full px-4 text-white animate-pulse-fast";
+
+            // Escolher os vencedores logicamente
+            let pool = [...availableStudents];
+            let winners = [];
+            let winnerIndices = [];
+            
+            for(let i=0; i<count; i++) {
+                const randIdx = Math.floor(Math.random() * pool.length);
+                winners.push(pool[randIdx]);
+                const originalIndex = availableStudents.indexOf(pool[randIdx]);
+                winnerIndices.push(originalIndex);
+                pool.splice(randIdx, 1);
+            }
+
+            // Animação de roleta (falsa)
+            let ticks = 0;
+            const maxTicks = 30; // duração da animação
+            const interval = setInterval(() => {
+                let randomNames = [];
+                for(let i=0; i<count; i++) {
+                    randomNames.push(availableStudents[Math.floor(Math.random() * availableStudents.length)]);
+                }
+                
+                // Exibe os nomes com um separador & se for mais de um
+                resultDisplay.innerHTML = randomNames.join('<br><span class="text-brand-500/50 text-xl text-shadow-none">&</span><br>');
+                ticks++;
+
+                if (ticks >= maxTicks) {
+                    clearInterval(interval);
+                    finishDraw(winners, winnerIndices);
+                }
+            }, 80);
+        }
+
+        function finishDraw(winners, winnerIndices) {
+            const resultDisplay = document.getElementById('resultDisplay');
+            const removeAfter = document.getElementById('removeAfterDraw').checked;
+
+            // Mostra vencedores finais
+            resultDisplay.innerHTML = winners.join('<br><span class="text-brand-400 text-2xl drop-shadow-none" style="text-shadow:none;">&</span><br>');
+            
+            // Ajusta o tamanho da fonte caso sejam muitos nomes
+            let textSize = winners.length > 2 ? 'text-3xl md:text-4xl' : 'text-5xl md:text-6xl';
+            resultDisplay.className = `${textSize} font-extrabold text-center break-words w-full px-4 winner-text`;
+
+            // Lança Confete proporcional à quantidade de sorteados
+            confetti({
+                particleCount: 150 + (winners.length * 20),
+                spread: 70 + (winners.length * 10),
+                origin: { y: 0.6 },
+                colors: ['#8b5cf6', '#ec4899', '#ffffff']
+            });
+
+            // Adiciona ao histórico
+            const now = new Date();
+            const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            winners.forEach(winnerName => {
+                drawHistory.push({ name: winnerName, time: timeString });
+            });
+
+            // Remove se selecionado (ordem decrescente para não quebrar os índices)
+            if (removeAfter) {
+                winnerIndices.sort((a, b) => b - a).forEach(idx => {
+                    availableStudents.splice(idx, 1);
+                });
+            }
+
+            // Atualiza interface
+            updateUI();
+
+            // Restaura botão
+            const drawBtn = document.getElementById('drawBtn');
+            drawBtn.disabled = false;
+            drawBtn.innerHTML = `
+                <span class="relative z-10 flex items-center gap-3">
+                    <i class="fa-solid fa-play"></i> Sortear Novamente
+                </span>
+                <div class="absolute inset-0 h-full w-full rounded-full bg-gradient-to-r from-brand-400 via-pink-400 to-brand-400 opacity-0 group-hover:opacity-20 transition-opacity"></div>
+            `;
+            isDrawing = false;
+        }
+
+        function clearHistory() {
+            drawHistory = [];
+            updateUI();
+        }
+
+        // --- Funções do Editor JSON ---
+
+        function openSettings() {
+            const modal = document.getElementById('settingsModal');
+            const editor = document.getElementById('jsonEditor');
+            document.getElementById('jsonError').classList.add('hidden');
+            
+            // Formata o JSON atual para exibição bonita
+            editor.value = JSON.stringify(classesData, null, 4);
+            modal.classList.remove('hidden');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+
+        function saveSettings() {
+            const editor = document.getElementById('jsonEditor');
+            const errorBox = document.getElementById('jsonError');
+            const errorText = document.getElementById('jsonErrorText');
+            
+            try {
+                const parsedData = JSON.parse(editor.value);
+                
+                // Validação básica se é um objeto e tem arrays
+                if (typeof parsedData !== 'object' || Array.isArray(parsedData) || parsedData === null) {
+                    throw new Error("O formato principal deve ser um objeto JSON (iniciado com chaves {}).");
+                }
+                
+                for (const key in parsedData) {
+                    if (!Array.isArray(parsedData[key])) {
+                        throw new Error(`A turma "${key}" deve conter uma lista (array) de nomes.`);
+                    }
+                }
+
+                // Se passou, salva no localStorage e atualiza
+                classesData = parsedData;
+                localStorage.setItem('sorteioPro_data', JSON.stringify(classesData));
+                
+                closeSettings();
+                
+                // Recarrega o seletor (mantendo a turma atual se possível)
+                populateClassSelector();
+
+                // Feedback visual leve
+                alert("Turmas atualizadas e salvas com sucesso!");
+
+            } catch (error) {
+                errorText.textContent = error.message || "Erro de sintaxe no JSON. Verifique vírgulas e aspas.";
+                errorBox.classList.remove('hidden');
+            }
+        }
+
+        function resetToDefault() {
+            if(confirm("Tem certeza que deseja restaurar as turmas de exemplo? Isso apagará suas edições não salvas.")) {
+                document.getElementById('jsonEditor').value = JSON.stringify(defaultData, null, 4);
+                document.getElementById('jsonError').classList.add('hidden');
+            }
+        }
+
+        // Função de Tela Cheia
+        function toggleFullScreen() {
+            const doc = window.document;
+            const docEl = doc.documentElement;
+            const icon = document.getElementById('fullscreenIcon');
+
+            const requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
+            const cancelFullScreen = doc.exitFullscreen || doc.mozCancelFullScreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+
+            if (!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+                if (requestFullScreen) {
+                    requestFullScreen.call(docEl).catch(err => {
+                        console.log(`Erro ao ativar tela cheia: ${err.message}`);
+                    });
+                }
+                icon.classList.replace('fa-expand', 'fa-compress');
+            } else {
+                if (cancelFullScreen) {
+                    cancelFullScreen.call(doc);
+                }
+                icon.classList.replace('fa-compress', 'fa-expand');
+            }
+        }
+
+        // Monitora mudanças na tela cheia (ex: se o usuário pressionar ESC)
+        document.addEventListener('fullscreenchange', () => {
+            const icon = document.getElementById('fullscreenIcon');
+            if (document.fullscreenElement) {
+                icon.classList.replace('fa-expand', 'fa-compress');
+            } else {
+                icon.classList.replace('fa-compress', 'fa-expand');
+            }
+        });
+
+        // Inicia o app
+        window.onload = init;
+
+    </script>
+</body>
+</html>
