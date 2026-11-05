@@ -12,6 +12,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <!-- Canvas Confetti para Efeitos -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Tone.js para Efeitos Sonoros -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     
     <script>
         tailwind.config = {
@@ -74,7 +76,7 @@
 <body class="p-4 md:p-8 flex flex-col items-center">
 
     <!-- Cabeçalho -->
-    <header class="w-full max-w-8xl flex justify-between items-center mb-8">
+    <header class="w-full max-w-7xl flex justify-between items-center mb-8">
         <div class="flex items-center gap-3">
             <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-brand-500 to-pink-500 flex items-center justify-center text-xl font-bold shadow-lg shadow-brand-500/30">
                 <i class="fa-solid fa-dice-d20"></i>
@@ -85,6 +87,9 @@
             </div>
         </div>
         <div class="flex items-center gap-2 sm:gap-3">
+            <button onclick="toggleAudio()" class="glass-panel px-4 py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center h-10 w-10 sm:w-auto sm:gap-2" title="Ligar/Desligar Som">
+                <i class="fa-solid fa-volume-high" id="audioIcon"></i> <span class="hidden sm:inline" id="audioText">Som On</span>
+            </button>
             <button onclick="toggleFullScreen()" class="glass-panel px-4 py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center h-10 w-10 sm:w-auto sm:gap-2" title="Tela Cheia">
                 <i class="fa-solid fa-expand" id="fullscreenIcon"></i> <span class="hidden sm:inline">Tela Cheia</span>
             </button>
@@ -95,7 +100,7 @@
     </header>
 
     <!-- Área Principal -->
-    <main class="w-full max-w-[100rem] grid grid-cols-1 md:grid-cols-12 gap-6">
+    <main class="w-full max-w-7xl grid grid-cols-1 md:grid-cols-12 gap-6">
         
         <!-- Painel Esquerdo: Seleção e Lista -->
         <div class="glass-panel rounded-2xl p-6 md:col-span-4 flex flex-col h-[750px]">
@@ -266,6 +271,50 @@
         let availableStudents = [];
         let drawHistory = [];
         let isDrawing = false;
+        
+        // Variáveis de Áudio (Tone.js)
+        let audioInitialized = false;
+        let isMuted = false;
+        let drumSynth;
+        let winSynth;
+
+        // Inicializa o motor de áudio (requer clique do usuário)
+        async function initAudio() {
+            if (audioInitialized) return;
+            await Tone.start();
+            
+            // Sintetizador para o "rufar de tambores" (percussivo)
+            drumSynth = new Tone.MembraneSynth({
+                pitchDecay: 0.05,
+                octaves: 2,
+                oscillator: { type: "square" },
+                envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 }
+            }).toDestination();
+            drumSynth.volume.value = -12; // Volume reduzido para não assustar
+
+            // Sintetizador para o som de vitória (Fanfarra)
+            winSynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "triangle" },
+                envelope: { attack: 0.05, decay: 0.1, sustain: 0.3, release: 1 }
+            }).toDestination();
+            winSynth.volume.value = -5;
+
+            audioInitialized = true;
+        }
+
+        // Liga/Desliga o som na interface
+        function toggleAudio() {
+            isMuted = !isMuted;
+            const icon = document.getElementById('audioIcon');
+            const text = document.getElementById('audioText');
+            if (isMuted) {
+                icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
+                text.textContent = 'Som Off';
+            } else {
+                icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
+                text.textContent = 'Som On';
+            }
+        }
 
         // Inicialização
         function init() {
@@ -388,9 +437,13 @@
         }
 
         // Função principal de sorteio
-        function startDraw() {
+        async function startDraw() {
             if (availableStudents.length === 0 || isDrawing) return;
             
+            // Os navegadores exigem que o áudio inicie a partir de um clique.
+            // O clique no botão "Sortear Agora" é o gatilho perfeito.
+            if (!isMuted) await initAudio();
+
             let count = parseInt(document.getElementById('drawCount').value) || 1;
             if (count < 1) count = 1;
             if (count > availableStudents.length) count = availableStudents.length;
@@ -429,6 +482,14 @@
                 
                 // Exibe os nomes com um separador & se for mais de um
                 resultDisplay.innerHTML = randomNames.join('<br><span class="text-brand-500/50 text-xl text-shadow-none">&</span><br>');
+                
+                // Efeito sonoro do rufar de tambores / roleta
+                if (audioInitialized && !isMuted) {
+                    // Alterna ligeiramente o tom (G2 e C2) para dar efeito de roleta/tambor girando
+                    const pitch = ticks % 2 === 0 ? "G2" : "C2";
+                    drumSynth.triggerAttackRelease(pitch, "16n");
+                }
+
                 ticks++;
 
                 if (ticks >= maxTicks) {
@@ -441,6 +502,13 @@
         function finishDraw(winners, winnerIndices) {
             const resultDisplay = document.getElementById('resultDisplay');
             const removeAfter = document.getElementById('removeAfterDraw').checked;
+
+            // Efeito sonoro de vitória (Acorde vibrante)
+            if (audioInitialized && !isMuted) {
+                const now = Tone.now();
+                winSynth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now); // Primeiro toque curto
+                winSynth.triggerAttackRelease(["C5", "E5", "G5"], "2n", now + 0.15); // Segundo toque longo e mais agudo
+            }
 
             // Mostra vencedores finais
             resultDisplay.innerHTML = winners.join('<br><span class="text-brand-400 text-2xl drop-shadow-none" style="text-shadow:none;">&</span><br>');
